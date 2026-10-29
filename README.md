@@ -12,15 +12,24 @@ vector art, word-level captions, a concept that assembles itself across scenes.
 Designed so that Claude, or any AI tool, can drive the whole pipeline from a
 script, look at what it produced, and fix its own mistakes.
 
+**→ [Full user guide](docs/GUIDE.md)** — idea to finished video, with the
+short-form writing rules.
+
 ```bash
 pnpm install
 ./scripts/setup-media.sh        # Whisper + yt-dlp, in an isolated venv
-cp .env.example .env            # add ELEVENLABS_API_KEY (optional to start)
+cp .env.example .env            # add ELEVENLABS_API_KEY (only needed to finish)
 
 pnpm cadence new my-video
 # edit projects/my-video/script.md
-pnpm cadence all my-video --mock-voice
+pnpm cadence all my-video       # draft: free, offline, repeat as needed
+pnpm cadence final my-video     # the only step that spends characters
 ```
+
+**Everything is free until `final`.** Drafting uses an offline stand-in voice
+with real word timings, so pacing, captions and transitions are all honest
+before you spend anything. `final` validates the draft first, shows the exact
+character cost against your remaining allowance, and asks before synthesising.
 
 ## The idea
 
@@ -66,19 +75,23 @@ script.md ──parse──▶ Script (+ character offsets)
 
 | Command | Does |
 | --- | --- |
-| `video new <name>` | Scaffold a project |
-| `video voice <name>` | Narration + word timings (synthesised, or Whisper on a recording) |
-| `video fetch <name> <url>` | Pull footage or audio with yt-dlp, normalised to the frame |
-| `video build <name>` | `script.md` → `video.json`, mix audio, emit `.srt` |
-| `video validate <name>` | Structured report of everything wrong (`--json`) |
-| `video proof <name>` | One still per scene, to look at before rendering |
-| `video preview <name>` | Open Remotion studio |
-| `video render <name>` | Render the MP4 |
-| `video all <name>` | voice → build → validate → render |
-| `video catalog` | List the layouts a script can use (`--json`) |
+| `cadence new <name>` | Scaffold a project |
+| `cadence voice <name>` | Draft narration + word timings (free, offline) |
+| `cadence fetch <name> <url>` | Pull footage or audio with yt-dlp, normalised to the frame |
+| `cadence build <name>` | `script.md` → `video.json`, mix audio, emit `.srt` |
+| `cadence validate <name>` | Structured report of everything wrong (`--json`) |
+| `cadence proof <name>` | One still per scene, to look at before rendering |
+| `cadence preview <name>` | Open Remotion studio |
+| `cadence render <name>` | Render the MP4 |
+| `cadence all <name>` | voice → build → validate → render |
+| `cadence catalog` | List the layouts a script can use (`--json`) |
+
+| `cadence final <name>` | **Spends characters.** Validate, buy the real voice, render |
+| `cadence quota` | Characters left, and how many runs that buys |
 
 ```
---mock-voice             offline narration; no API key, no spend
+--real                   voice: use ElevenLabs instead of the draft voice
+-y, --yes                skip the spend confirmation
 --audio <file>           time the script to an existing recording (Whisper)
 --whisper-model <size>   tiny | base | small | medium | large-v3   (default base)
 --renderer <name>        remotion (default) | hyperframes
@@ -88,7 +101,9 @@ script.md ──parse──▶ Script (+ character offsets)
 --json                   machine-readable output
 ```
 
-`--mock-voice` runs the whole pipeline offline with no API key and no spend.
+Drafting needs no API key at all. ElevenLabs bills per character of narration —
+roughly 1,400 for a 90-second video, so a free tier is about seven finished
+videos a month. `cadence quota` tells you where you stand.
 
 ## Script format
 

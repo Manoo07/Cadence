@@ -9,13 +9,15 @@ import { cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { promisify } from "node:util";
+import { createInterface } from "node:readline/promises";
 import { compile, toSrt } from "../core/compile.ts";
 import { FORMATS } from "../core/types.ts";
 import { parseScript } from "../core/script.ts";
 import { validate, type ValidationReport } from "../core/validate.ts";
 import type { VideoSpec, Word } from "../core/types.ts";
 import { layoutNames, parseLayoutProps } from "../scenes/registry.ts";
-import { narrate, type WhisperModel } from "../voice/index.ts";
+import { narrate, cacheKey, resolveVoiceId, type WhisperModel } from "../voice/index.ts";
+import { checkSpend, fetchQuota, formatQuota } from "../voice/quota.ts";
 import { fetchMedia, probeUrl, ytDlpAvailable } from "../media/fetch.ts";
 import { extractAudio, prepareFootage } from "../media/footage.ts";
 import { emitHyperframes } from "../renderers/hyperframes/emit.ts";
@@ -143,14 +145,96 @@ export {};
 // ------------------------------------------------------------------- voice
 
 export type VoiceOptions = {
+  /** Draft narration: offline, free. The default. */
   readonly mock: boolean;
+  /** Spend real ElevenLabs characters. Must be asked for explicitly. */
+  readonly real?: boolean;
+  /** Skip the spend confirmation (for non-interactive use). */
+  readonly yes?: boolean;
   /** Time the script against an existing recording instead of synthesising. */
   readonly audioPath?: string;
   readonly whisperModel?: WhisperModel;
 };
 
-export const cmdVoice = async (name: string, options: VoiceOptions): Promise<void> => {
-  const { mock, audioPath, whisperModel } = options;
+/**
+ * Ask before spending.
+ *
+ * Returns true when the run should go ahead. Non-interactive sessions decline
+ * rather than spend silently — an unattended script burning a monthly free
+ * tier is a worse failure than one that stops and says why.
+ */
+const confirmSpend = async (question: string): Promise<boolean> => {
+  if (!process.stdin.isTTY) return false;
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const answer = await rl.question(`${question} [y/N] `);
+    return /^y(es)?$/i.test(answer.trim());
+  } finally {
+    rl.close();
+  }
+};
+
+/**
+ * Everything that has to be true before a paid synthesis runs.
+ *
+ * Checks the cache first, because a re-run of unchanged text costs nothing and
+ * should not prompt. Otherwise it prints the exact character cost against the
+ * remaining allowance and asks. The cost is exact, not estimated: ElevenLabs
+ * bills per character of the submitted text.
+ */
+const gateSpend = async (
+  text: string,
+  voice: string,
+  yes: boolean,
+): Promise<"cached" | "go" | "stop"> => {
+  const apiKey = process.env["ELEVENLABS_API_KEY"] ?? "";
+  if (apiKey === "") {
+    fail(
+      "ELEVENLABS_API_KEY is not set, so there is nothing to finalise with.\n" +
+        "  Add it to .env, or keep working in draft with `cadence voice <name>`.",
+    );
+  }
+
+  const model = process.env["ELEVENLABS_MODEL_ID"] ?? "eleven_multilingual_v2";
+  const key = cacheKey(text, resolveVoiceId(voice), model);
+  if (existsSync(join(CACHE, `${key}.mp3`))) {
+    log.dim("  Already synthesised — using the cache, no characters spent.");
+    return "cached";
+  }
+
+  const check = await checkSpend(text, apiKey);
+  log.plain("");
+  log.plain(`  This run costs ${check.cost.toLocaleString()} characters.`);
+  if (check.quota) {
+    log.plain(`  You have ${formatQuota(check.quota)}`);
+    if (!check.affordable) {
+      log.fail(
+        `  Not enough left: need ${check.cost.toLocaleString()}, have ${check.quota.remaining.toLocaleString()}.`,
+      );
+      return "stop";
+    }
+    log.dim(`  After this run: ${check.remainingAfter!.toLocaleString()} characters left.`);
+  }
+  log.plain("");
+
+  if (yes) return "go";
+  return (await confirmSpend("  Spend them?")) ? "go" : "stop";
+};
+
+export type VoiceResult = {
+  /** What produced the timings, or null when the user declined to spend. */
+  readonly source: "elevenlabs" | "whisper" | "mock" | null;
+  readonly cached: boolean;
+};
+
+export const cmdVoice = async (
+  name: string,
+  options: VoiceOptions,
+): Promise<VoiceResult> => {
+  const { audioPath, whisperModel } = options;
+  // Draft unless real narration was explicitly asked for. Inverted on purpose:
+  // forgetting a flag should cost nothing.
+  const mock = !options.real && !audioPath;
   const p = projectPaths(name);
   if (!existsSync(p.script)) fail(`No script at ${p.script}`);
 
@@ -165,8 +249,18 @@ export const cmdVoice = async (name: string, options: VoiceOptions): Promise<voi
   log.step(
     audioPath
       ? `Timing ${wordCount} words against ${basename(audioPath)} with Whisper…`
-      : `Narrating ${wordCount} words${mock ? " (mock)" : ""}…`,
+      : mock
+        ? `Drafting ${wordCount} words of narration (offline, free)…`
+        : `Narrating ${wordCount} words with ElevenLabs…`,
   );
+
+  if (!mock && !audioPath) {
+    const gate = await gateSpend(script.voiceoverText, script.meta.voice, options.yes ?? false);
+    if (gate === "stop") {
+      log.warn("Nothing spent. Draft narration is still available with `cadence voice " + name + "`.");
+      return { source: null, cached: false };
+    }
+  }
 
   const result = await narrate({
     text: script.voiceoverText,
@@ -208,6 +302,8 @@ export const cmdVoice = async (name: string, options: VoiceOptions): Promise<voi
       log.dim(`  ${line}`);
     }
   }
+
+  return { source: result.source, cached: result.cached };
 };
 
 // ------------------------------------------------------------------- build
@@ -496,6 +592,107 @@ export const cmdAll = async (name: string, voice: VoiceOptions, renderer: Render
     return;
   }
   await cmdRender(name, [], renderer);
+};
+
+// ------------------------------------------------------------------ final
+
+/**
+ * Finalise: the one command that spends ElevenLabs characters.
+ *
+ * The order matters. The draft is built and validated *first*, so a script
+ * with an unknown layout or overflowing text is caught while it is still free.
+ * Only once the video is known to be renderable is the real voice bought —
+ * because a failed render after synthesis has already cost you the characters.
+ *
+ * Everything else in the pipeline stays offline by default, so the only way to
+ * spend is to ask for it by name.
+ */
+export const cmdFinal = async (
+  name: string,
+  options: { yes?: boolean; renderer?: Renderer; whisperModel?: WhisperModel },
+): Promise<void> => {
+  const p = projectPaths(name);
+  if (!existsSync(p.script)) fail(`No script at ${p.script}`);
+
+  log.title(`Finalising "${name}"`);
+
+  // 1. Prove the video works on draft narration before buying anything.
+  log.step("Checking the draft first…");
+  await cmdVoice(name, { mock: true });
+  await cmdBuild(name);
+
+  const draft = await runValidation(p);
+  if (!draft.ok) {
+    log.plain("");
+    for (const i of draft.issues.filter((x) => x.severity === "error")) {
+      log.fail(`${i.code}${i.scene ? ` [${i.scene}]` : ""}: ${i.message}`);
+      if (i.hint) log.dim(`    ${i.hint}`);
+    }
+    log.plain("");
+    fail("The draft does not validate. Fixed it first — no characters were spent.");
+  }
+  if (draft.warnings > 0) {
+    log.warn(`${draft.warnings} warning(s) — \`cadence validate ${name}\` for detail.`);
+  }
+  log.done("Draft is renderable.");
+
+  // 2. Buy the real voice.
+  const voice = await cmdVoice(name, { mock: false, real: true, yes: options.yes });
+
+  // A declined spend leaves the draft narration in place. Rendering it anyway
+  // would hand back a mock-voiced file labelled "final", so stop instead.
+  if (voice.source === null) {
+    log.plain("");
+    log.warn(`"${name}" was not finalised — the draft is unchanged.`);
+    log.dim("    Re-run `cadence final " + name + "` and confirm, or pass --yes.");
+    return;
+  }
+
+  // 3. Rebuild on the real timings and render.
+  await cmdBuild(name);
+  const finalReport = await runValidation(p);
+  if (!finalReport.ok) {
+    await cmdValidate(name, false);
+    return;
+  }
+
+  await cmdRender(name, [], options.renderer ?? "remotion");
+  log.plain("");
+  log.done(`"${name}" is final.`);
+};
+
+// ------------------------------------------------------------------ quota
+
+/** Report the remaining ElevenLabs allowance. Costs nothing to run. */
+export const cmdQuota = async (json: boolean): Promise<void> => {
+  const apiKey = process.env["ELEVENLABS_API_KEY"] ?? "";
+  if (apiKey === "") fail("ELEVENLABS_API_KEY is not set in .env.");
+
+  const quota = await fetchQuota(apiKey);
+
+  if (json) {
+    console.log(JSON.stringify(quota, null, 2));
+    return;
+  }
+
+  log.title("ElevenLabs");
+  log.plain(`  ${formatQuota(quota)}`);
+
+  // What that allowance is actually worth, in this project's terms.
+  const projects = (await readdir(PROJECTS, { withFileTypes: true }).catch(() => []))
+    .filter((e) => e.isDirectory());
+  if (projects.length > 0) log.plain("");
+  for (const entry of projects) {
+    const scriptPath = projectPaths(entry.name).script;
+    if (!existsSync(scriptPath)) continue;
+    const parsed = parseScript(await readFile(scriptPath, "utf8"));
+    if (!parsed.ok) continue;
+    const cost = parsed.value.voiceoverText.length;
+    const runs = cost > 0 ? Math.floor(quota.remaining / cost) : 0;
+    log.plain(
+      `  ${entry.name.padEnd(16)} ${String(cost).padStart(6)} chars  ·  ${runs} more run(s)`,
+    );
+  }
 };
 
 // ------------------------------------------------------------------ fetch

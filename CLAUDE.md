@@ -40,8 +40,10 @@ and the style pack.
 it moves or what colour it is. This is what keeps the catalog writable by a
 model.
 
-**Work with `--mock-voice` until the end.** Real synthesis costs money. The
-mock runs the whole pipeline offline.
+**Draft is free; `final` spends.** `voice` uses the offline stand-in unless
+`--real` is passed, and `cadence final` is the only command that buys
+ElevenLabs characters. It validates the draft before spending, so a broken
+script never costs anything. Never add `--yes` on the user's behalf.
 
 **Never zip a transcript against a script.** Whisper reports what it heard, not
 what was written. Timings are transferred through the sequence alignment in

@@ -31,6 +31,8 @@ import {
   cmdProof,
   cmdRender,
   cmdFetch,
+  cmdFinal,
+  cmdQuota,
   cmdValidate,
   cmdVoice,
   type Renderer,
@@ -56,27 +58,35 @@ const loadEnv = (): void => {
 const USAGE = `
 Cadence — script in, video out
 
+Draft — free, offline, run as often as you like
   pnpm cadence new <name>             scaffold a project
-  pnpm cadence voice <name>           narration + word timings
-  pnpm cadence fetch <name> <url>     pull footage or audio with yt-dlp
+  pnpm cadence voice <name>           draft narration + word timings
   pnpm cadence build <name>           compile script.md -> video.json
-  pnpm cadence validate <name>        report problems (add --json for an agent)
-  pnpm cadence proof <name>           render one still per scene
+  pnpm cadence validate <name>        report problems (--json for an agent)
+  pnpm cadence proof <name>           one still per scene — look at these
   pnpm cadence preview <name>         open Remotion studio
   pnpm cadence render <name>          render the MP4
-  pnpm cadence all <name>             voice -> build -> validate -> render
+  pnpm cadence all <name>             the four above, in order
+
+Finish — the only step that spends ElevenLabs characters
+  pnpm cadence final <name>           validate, then buy the real voice, then render
+  pnpm cadence quota                  how many characters you have left
+
+Other
+  pnpm cadence fetch <name> <url>     pull footage or audio with yt-dlp
   pnpm cadence catalog                list available layouts
   pnpm cadence list                   list projects
 
 Flags
-  --mock-voice             offline narration; no API key, no spend
+  --real                   voice: use ElevenLabs instead of the draft voice
+  -y, --yes                skip the spend confirmation
   --audio <file>           time the script to an existing recording (Whisper)
   --whisper-model <size>   tiny | base | small | medium | large-v3  (default base)
   --renderer <name>        remotion (default) | hyperframes
   --audio-only             fetch: take the soundtrack only
   --section <range>        fetch: trim, e.g. '*00:01:10-00:01:25'
   --fit <mode>             fetch: cover (default) | contain | blur
-  --json                   machine-readable output (validate, catalog)
+  --json                   machine-readable output
 `;
 
 const main = async (): Promise<void> => {
@@ -104,6 +114,8 @@ const main = async (): Promise<void> => {
 
   const voiceOptions = {
     mock,
+    real: flags.has("--real"),
+    yes: flags.has("--yes") || flags.has("-y"),
     audioPath: valueOf("audio"),
     whisperModel: valueOf("whisper-model") as
       | "tiny" | "base" | "small" | "medium" | "large-v3" | undefined,
@@ -118,7 +130,7 @@ const main = async (): Promise<void> => {
   // Everything we do not consume ourselves is forwarded to the renderer.
   const OWN_FLAGS = new Set([
     "--mock-voice", "--mock", "--json", "--audio", "--whisper-model",
-    "--renderer", "--audio-only", "--section", "--fit",
+    "--renderer", "--audio-only", "--section", "--fit", "--real", "--yes", "-y",
   ]);
   const consumedValues = new Set(
     ["audio", "whisper-model", "renderer", "section", "fit"]
@@ -145,7 +157,9 @@ const main = async (): Promise<void> => {
     case "new":
       return cmdNew(name ?? "");
     case "voice":
-      return cmdVoice(needsName(), voiceOptions);
+      // Discard the result: the switch arms all resolve to void.
+      await cmdVoice(needsName(), voiceOptions);
+      return;
     case "build":
       return cmdBuild(needsName());
     case "validate":
@@ -164,6 +178,16 @@ const main = async (): Promise<void> => {
       });
     case "all":
       return cmdAll(needsName(), voiceOptions, renderer);
+    case "final":
+    case "finalize":
+    case "finalise":
+      return cmdFinal(needsName(), {
+        yes: voiceOptions.yes,
+        renderer,
+        whisperModel: voiceOptions.whisperModel,
+      });
+    case "quota":
+      return cmdQuota(json);
     case "catalog":
       return cmdCatalog(json);
     case "list":

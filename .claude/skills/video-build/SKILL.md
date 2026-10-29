@@ -8,17 +8,32 @@ description: Build, validate, proof and render a Cadence video — the commands,
 ## The loop
 
 ```bash
-pnpm cadence new <name>                  # scaffold
+pnpm cadence new <name>              # scaffold
 # edit projects/<name>/script.md
-pnpm cadence voice <name> --mock-voice   # offline narration, no API spend
-pnpm cadence build <name>                # -> video.json + mixed audio + .srt
-pnpm cadence validate <name> --json      # structured report
-pnpm cadence proof <name>                # one PNG per scene
+pnpm cadence voice <name>            # draft narration — free, offline
+pnpm cadence build <name>            # -> video.json + mixed audio + .srt
+pnpm cadence validate <name> --json  # structured report
+pnpm cadence proof <name>            # one PNG per scene
 # LOOK at projects/<name>/out/proof/*.png, fix the script, repeat
-pnpm cadence voice <name>                # real ElevenLabs, once you are happy
-pnpm cadence build <name>
-pnpm cadence render <name>               # -> out/<name>.mp4
+pnpm cadence final <name>            # SPENDS: validate, buy the voice, render
 ```
+
+## Spending rules
+
+Everything except `final` is free and offline. `cadence final` is the only
+command that buys ElevenLabs characters, and `voice --real` is the only other
+way to reach synthesis.
+
+- **Never pass `--yes` on the user's behalf.** It skips the spend
+  confirmation. Let them answer.
+- **Never run `final` or `--real` unless the user asked to finish the video.**
+  Iterate on the draft.
+- `cadence quota` reports the remaining allowance and costs nothing to run.
+  Check it before suggesting a finalise.
+- `final` validates the draft before spending, so a broken script never costs
+  characters. Do not reorder those steps.
+- The cache is keyed on exact narration text — one changed word means a full
+  re-spend. Settle the script in draft first.
 
 `pnpm cadence all <name> [--mock-voice]` chains voice → build → validate → render.
 
@@ -28,9 +43,9 @@ Three sources, all producing the same `words.json`:
 
 | Flag | Source | Use when |
 | --- | --- | --- |
-| *(none)* | ElevenLabs `with-timestamps` | Synthesising narration. Exact, free with the call, cached. |
-| `--mock-voice` | macOS `say` + estimated timings | Iterating on layout. No API key, no spend. |
-| `--audio <file>` | Whisper via faster-whisper | A human recording, or audio pulled from a video. |
+| *(none)* | macOS `say` + estimated timings | The default. Iterating on layout and pacing. Free. |
+| `--real`, or `final` | ElevenLabs `with-timestamps` | Finishing. Exact timings, cached, costs characters. |
+| `--audio <file>` | Whisper via faster-whisper | A human recording, or audio pulled from a video. Free. |
 
 With `--audio`, Whisper transcribes and the timings are transferred onto the
 script by sequence alignment. The command reports coverage — the share of
