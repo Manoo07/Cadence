@@ -24,6 +24,15 @@ const schema = z.object({
   /** Rows beyond this index are dimmed as 'not yet reached'. */
   revealed: z.number().int().optional().describe("How many rows exist yet. Defaults to all."),
   align: z.enum(["left", "center"]).default("center"),
+  /**
+   * Which way the list grows.
+   *
+   * `up` stacks new rows on top of old ones, which is right when you are
+   * building something — a foundation with layers added above it. `down`
+   * reads top-to-bottom like an ordinary numbered list, which is right when
+   * the rows are an ordered enumeration rather than a construction.
+   */
+  order: z.enum(["up", "down"]).default("up"),
 });
 
 const Stack: React.FC<z.infer<typeof schema>> = ({
@@ -32,6 +41,7 @@ const Stack: React.FC<z.infer<typeof schema>> = ({
   title,
   revealed,
   align = "center",
+  order = "up",
 }) => {
   const { style, frame, fps, format, scale, durationInFrames } = useScene();
   const { palette, shape, type } = style;
@@ -58,7 +68,13 @@ const Stack: React.FC<z.infer<typeof schema>> = ({
         </Text>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column-reverse", gap }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: order === "up" ? "column-reverse" : "column",
+          gap,
+        }}
+      >
         {items.map((item, i) => {
           const exists = i < shown;
           if (!exists) return null;
@@ -75,12 +91,15 @@ const Stack: React.FC<z.infer<typeof schema>> = ({
 
           return (
             <div
-              key={item}
+              // Index-qualified: a stack may legitimately hold blank or
+              // repeated rows (seven empty slots waiting to be filled), and a
+              // bare label is not a unique key.
+              key={`${i}-${item}`}
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 14 * scale,
-                width: 440 * scale,
+                width: 580 * scale,
                 height: rowHeight,
                 padding: `0 ${20 * scale}px`,
                 boxSizing: "border-box",
@@ -126,7 +145,7 @@ export const stackLayout = defineLayout({
   name: "stack",
   summary: "A vertical list that grows across scenes, with one row highlighted.",
   useWhen:
-    "You are building up a system piece by piece. Pass the FULL item list every scene and move `active`; use `revealed` to hide rows not yet introduced.",
+    "You are building up a system piece by piece, or working through an ordered list. Pass the FULL item list every scene and move `active`; use `revealed` to hide rows not yet introduced. Use order: \"down\" when the rows are a numbered enumeration rather than a construction.",
   schema,
   component: Stack,
   example: `:: stack { items: ["MODEL","SYSTEM PROMPT","RAG","TOOLS"], revealed: 3, active: 2 }`,

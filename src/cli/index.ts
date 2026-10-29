@@ -132,18 +132,33 @@ const main = async (): Promise<void> => {
     "--mock-voice", "--mock", "--json", "--audio", "--whisper-model",
     "--renderer", "--audio-only", "--section", "--fit", "--real", "--yes", "-y",
   ]);
-  const consumedValues = new Set(
-    ["audio", "whisper-model", "renderer", "section", "fit"]
-      .map((k) => valueOf(k))
-      .filter((v): v is string => v !== undefined),
-  );
-  const passthrough = argv.filter(
-    (a) =>
-      a.startsWith("--") &&
-      !OWN_FLAGS.has(a) &&
-      !OWN_FLAGS.has(a.split("=")[0] ?? "") &&
-      !consumedValues.has(a),
-  );
+  const VALUE_FLAGS = ["audio", "whisper-model", "renderer", "section", "fit"];
+
+  /**
+   * Forward unrecognised flags to the renderer, values included.
+   *
+   * Filtering argv for strings starting with `--` loses the value of a
+   * `--flag value` pair, so `--concurrency 2` reaches the renderer as a bare
+   * `--concurrency` and fails there. Walk the list instead and carry the next
+   * token when it is not itself a flag.
+   */
+  const passthrough: string[] = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i]!;
+    if (!arg.startsWith("--")) continue;
+    const bare = arg.split("=")[0] ?? arg;
+    if (OWN_FLAGS.has(arg) || OWN_FLAGS.has(bare)) {
+      // Skip this flag, and its value when it takes a separate one.
+      if (!arg.includes("=") && VALUE_FLAGS.includes(bare.slice(2))) i += 1;
+      continue;
+    }
+    passthrough.push(arg);
+    const next = argv[i + 1];
+    if (!arg.includes("=") && next && !next.startsWith("-")) {
+      passthrough.push(next);
+      i += 1;
+    }
+  }
 
   const needsName = (): string => {
     if (!name) {

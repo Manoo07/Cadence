@@ -81,10 +81,12 @@ const gridSchema = z.object({
     .min(2)
     .max(9),
   headline: z.string().optional(),
+  /** Small mono label above the headline, naming the section. */
+  eyebrow: z.string().optional(),
   columns: z.number().int().min(2).max(3).default(3),
 });
 
-const Grid: React.FC<z.infer<typeof gridSchema>> = ({ items, headline, columns = 3 }) => {
+const Grid: React.FC<z.infer<typeof gridSchema>> = ({ items, headline, eyebrow, columns = 3 }) => {
   const { style, frame, fps, format, scale } = useScene();
   const { palette, shape, type } = style;
 
@@ -97,6 +99,7 @@ const Grid: React.FC<z.infer<typeof gridSchema>> = ({ items, headline, columns =
         gap: 30 * scale,
       }}
     >
+      {eyebrow && <Badge tone="plain">{eyebrow}</Badge>}
       {headline && (
         <Text role="heading" align="center" animate={{ delay: 0 }}>
           {headline}

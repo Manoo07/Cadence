@@ -9,13 +9,22 @@
 import React from "react";
 import { AbsoluteFill } from "remotion";
 import { z } from "zod";
-import { Chrome, Text, useScene } from "../kit/index.ts";
+import { Badge, Chrome, Text, useScene } from "../kit/index.ts";
 import { enter, stagger } from "../kit/motion.ts";
 import { defineLayout } from "./types.ts";
 
 const schema = z.object({
   lines: z.array(z.string()).min(1).describe("One string per line. Keep under ~44 chars."),
   headline: z.string().optional(),
+  /**
+   * A small mono label above the headline, naming the section.
+   *
+   * Explainers that run through a numbered list need the viewer to know which
+   * item they are on at a glance. Narration alone does not do this: someone
+   * who looks up three seconds late has no idea whether this is problem two
+   * or problem five.
+   */
+  eyebrow: z.string().optional(),
   title: z.string().default("terminal"),
   /** 0-based line indexes to render in the accent colour. */
   highlight: z.array(z.number().int()).default([]),
@@ -27,6 +36,7 @@ const schema = z.object({
 const Code: React.FC<z.infer<typeof schema>> = ({
   lines,
   headline,
+  eyebrow,
   title = "terminal",
   highlight = [],
   kind = "terminal",
@@ -45,6 +55,7 @@ const Code: React.FC<z.infer<typeof schema>> = ({
         gap: 26 * scale,
       }}
     >
+            {eyebrow && <Badge tone="plain">{eyebrow}</Badge>}
       {headline && (
         <Text role="heading" align="center" animate={{ delay: 0 }}>
           {headline}

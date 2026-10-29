@@ -9,7 +9,7 @@
 import React from "react";
 import { AbsoluteFill } from "remotion";
 import { z } from "zod";
-import { Text, useScene } from "../kit/index.ts";
+import { Badge, Text, useScene } from "../kit/index.ts";
 import { countUp, enter, stagger } from "../kit/motion.ts";
 import { defineLayout } from "./types.ts";
 
@@ -25,10 +25,19 @@ const stat = z.object({
 const schema = z.object({
   stats: z.array(stat).min(1).max(3).describe("One to three numbers. One is usually stronger."),
   headline: z.string().optional(),
+  /**
+   * A small mono label above the headline, naming the section.
+   *
+   * Explainers that run through a numbered list need the viewer to know which
+   * item they are on at a glance. Narration alone does not do this: someone
+   * who looks up three seconds late has no idea whether this is problem two
+   * or problem five.
+   */
+  eyebrow: z.string().optional(),
   caption: z.string().optional(),
 });
 
-const Stat: React.FC<z.infer<typeof schema>> = ({ stats, headline, caption }) => {
+const Stat: React.FC<z.infer<typeof schema>> = ({ stats, headline, eyebrow, caption }) => {
   const { style, frame, fps, beats, format, scale } = useScene();
   const { palette, type } = style;
 
@@ -44,6 +53,7 @@ const Stat: React.FC<z.infer<typeof schema>> = ({ stats, headline, caption }) =>
         gap: 34 * scale,
       }}
     >
+            {eyebrow && <Badge tone="plain">{eyebrow}</Badge>}
       {headline && (
         <Text role="heading" align="center" animate={{ delay: 0 }}>
           {headline}

@@ -8,7 +8,7 @@
 import React from "react";
 import { AbsoluteFill } from "remotion";
 import { z } from "zod";
-import { Text, useScene } from "../kit/index.ts";
+import { Badge, Text, useScene } from "../kit/index.ts";
 import { enter, stagger } from "../kit/motion.ts";
 import { defineLayout } from "./types.ts";
 
@@ -22,6 +22,8 @@ const schema = z.object({
   left: side,
   right: side,
   headline: z.string().optional(),
+  /** Small mono label above the headline, naming the section. */
+  eyebrow: z.string().optional(),
   /** Mark drawn between the columns. */
   divider: z.string().default("vs"),
 });
@@ -89,7 +91,7 @@ const Column: React.FC<z.infer<typeof side> & { delay: number }> = ({
   );
 };
 
-const Compare: React.FC<z.infer<typeof schema>> = ({ left, right, headline, divider = "vs" }) => {
+const Compare: React.FC<z.infer<typeof schema>> = ({ left, right, headline, eyebrow, divider = "vs" }) => {
   const { style, format, scale } = useScene();
 
   return (
@@ -101,6 +103,7 @@ const Compare: React.FC<z.infer<typeof schema>> = ({ left, right, headline, divi
         gap: 30 * scale,
       }}
     >
+      {eyebrow && <Badge tone="plain">{eyebrow}</Badge>}
       {headline && (
         <Text role="heading" align="center" animate={{ delay: 0 }}>
           {headline}

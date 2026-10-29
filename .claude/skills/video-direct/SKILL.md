@@ -197,6 +197,12 @@ Renders a project-supplied React component.
 
 ## Rules
 
+**Label the section.** Most layouts take an `eyebrow` (small mono label) and a
+`headline`. In any video that works through an ordered list, use both on every
+item scene — `eyebrow: "problem 03"`, `headline: "Full scan"`. A frame that
+does not say where it sits in the sequence makes the video feel like continuous
+talking rather than a structure.
+
 **Props are content, never style.** There is no `color`, no `fontSize`, no `x`
 unless the layout is explicitly about placement. If you want a different look,
 change the style pack, not the scene.

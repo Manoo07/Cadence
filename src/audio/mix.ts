@@ -28,6 +28,8 @@ export type MixOptions = {
   readonly duckRatio?: number;
   /** Sound effects to lay in, at absolute times. */
   readonly sfx?: readonly { path: string; atMs: number; gainDb?: number }[];
+  /** Integrated loudness target. -14 LUFS is the social-platform convention. */
+  readonly targetLufs?: number;
 };
 
 export const durationSeconds = async (path: string): Promise<number> => {
@@ -56,6 +58,7 @@ export const mix = async (options: MixOptions): Promise<string> => {
     musicGainDb = -22,
     duckRatio = 8,
     sfx = [],
+    targetLufs = -14,
   } = options;
 
   await mkdir(dirname(outPath), { recursive: true });
@@ -63,7 +66,7 @@ export const mix = async (options: MixOptions): Promise<string> => {
   // Nothing to mix: the narration already is the track.
   if (!musicPath && sfx.length === 0) {
     await run("ffmpeg", ["-v", "error", "-y", "-i", voiceoverPath, "-c:a", "libmp3lame", "-q:a", "2", outPath]);
-    return outPath;
+    return normalizeLoudness(outPath, targetLufs);
   }
 
   const voSeconds = await durationSeconds(voiceoverPath);
@@ -99,9 +102,7 @@ export const mix = async (options: MixOptions): Promise<string> => {
   });
 
   filters.push(
-    `${mixLabels.join("")}amix=inputs=${mixLabels.length}:duration=first:dropout_transition=0:normalize=0[mixed]`,
-    // Broadcast-ish loudness so the video sits at a sane level on social.
-    `[mixed]loudnorm=I=-16:TP=-1.5:LRA=11[out]`,
+    `${mixLabels.join("")}amix=inputs=${mixLabels.length}:duration=first:dropout_transition=0:normalize=0[out]`,
   );
 
   await run(
@@ -117,5 +118,48 @@ export const mix = async (options: MixOptions): Promise<string> => {
     { maxBuffer: 32 * 1024 * 1024 },
   );
 
-  return outPath;
+  return normalizeLoudness(outPath, targetLufs);
+};
+
+/**
+ * Normalise to a target loudness, in two passes.
+ *
+ * Single-pass `loudnorm` works from a running estimate and can land many dB
+ * from its own target — a mix asking for -16 measured -23 in practice, which
+ * on a social feed means the video is simply quieter than everything around
+ * it. Measuring first and then correcting with those numbers is accurate to a
+ * fraction of a dB.
+ *
+ * -14 LUFS is what Instagram, TikTok and YouTube normalise toward; sitting at
+ * that level means the platform leaves the audio alone.
+ */
+export const normalizeLoudness = async (
+  path: string,
+  targetLufs = -14,
+): Promise<string> => {
+  const measure = `loudnorm=I=${targetLufs}:TP=-1.0:LRA=11:print_format=json`;
+  const { stderr } = await run(
+    "ffmpeg",
+    ["-hide_banner", "-i", path, "-af", measure, "-f", "null", "-"],
+    { maxBuffer: 32 * 1024 * 1024 },
+  ).catch((e: { stderr?: string }) => ({ stderr: e.stderr ?? "" }));
+
+  const json = /\{[\s\S]*?"target_offset"[\s\S]*?\}/.exec(stderr ?? "");
+  if (!json) return path; // Could not measure; leave the mix as it is.
+
+  const m = JSON.parse(json[0]) as Record<string, string>;
+  const corrected =
+    `loudnorm=I=${targetLufs}:TP=-1.0:LRA=11` +
+    `:measured_I=${m["input_i"]}:measured_TP=${m["input_tp"]}` +
+    `:measured_LRA=${m["input_lra"]}:measured_thresh=${m["input_thresh"]}` +
+    `:offset=${m["target_offset"]}:linear=true:print_format=summary`;
+
+  const tmp = `${path}.norm.mp3`;
+  await run(
+    "ffmpeg",
+    ["-v", "error", "-y", "-i", path, "-af", corrected, "-ar", "48000", "-c:a", "libmp3lame", "-q:a", "2", tmp],
+    { maxBuffer: 32 * 1024 * 1024 },
+  );
+  await run("mv", [tmp, path]);
+  return path;
 };

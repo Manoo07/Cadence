@@ -13,22 +13,46 @@ import { dirname, join } from "node:path";
 import type { CharAlignment } from "../core/types.ts";
 
 const API = "https://api.elevenlabs.io/v1";
-const DEFAULT_VOICE = "21m00Tcm4TlvDq8ikWAM"; // Rachel
 const DEFAULT_MODEL = "eleven_multilingual_v2";
 
-/** Named voices, so scripts can say `voice: elevenlabs:Rachel`. */
+/**
+ * Named voices, so a script can say `voice: elevenlabs:Alice`.
+ *
+ * These are all *premade* voices. The distinction matters: ElevenLabs also
+ * publishes a much larger Voice Library, and library voices are rejected with
+ * a 402 on the free tier. Rachel — long the canonical example in their docs —
+ * is one of those, which means the obvious default is the one that cannot
+ * work for anyone without a paid plan.
+ *
+ * Narration-friendly voices first; the rest are here so a script can name one
+ * without looking up an id.
+ */
 const VOICE_IDS: Record<string, string> = {
-  rachel: "21m00Tcm4TlvDq8ikWAM",
+  // Clear, even delivery — good for explainers.
+  alice: "Xb7hH8MSUJpSbSDYk0k2",
+  river: "SAz9YHcvj6GT2YYXdXww",
+  matilda: "XrExE9yKIg1WjnnlVkGX",
+  daniel: "onwK4e9ZLuTAKqWW03F9",
+  eric: "cjVigY5qzO86Huf0OWal",
+  sarah: "EXAVITQu4vr4xnSDxMaL",
+  brian: "nPczCjzI2devNBz1zQrb",
+  george: "JBFqnCBsd6RMkjVDRZzb",
+  // More character, for a script that wants it.
+  liam: "TX3LPaxmHKxFdv7VOQHJ",
+  jessica: "cgSgspJ2msm6clMCkdW9",
+  laura: "FGY2WhTYpPnrIDTdsKH5",
+  charlie: "IKne3meq5aSn9XLyUdCD",
+  chris: "iP95p4xoKVk53GoZ742B",
+  will: "bIHbv24MWmeRgasZH58o",
+  roger: "CwhRBWXzGAHq8TQ4Fs17",
+  bill: "pqHfZKP75CvOlQylNhV4",
+  lily: "pFZP5JQG7iQjIQuC4Bku",
+  callum: "N2lVS1w4EtoT3dr4eOWO",
   adam: "pNInz6obpgDQGcFmaJgB",
-  antoni: "ErXwobaYiN019PkySvjV",
-  bella: "EXAVITQu4vr4xnSDxMaL",
-  josh: "TxGEqnHWrfWFTfGW9XjX",
-  arnold: "VR6AewLTigWG4xSOukaG",
-  domi: "AZnzlk1XvdvUeBnXmlld",
-  elli: "MF3mGyEYCl7XYWbV9V6O",
-  sam: "yoZ06aMxZJJ28mfd3POQ",
-  default: DEFAULT_VOICE,
 };
+
+/** Alice: clear, even, built for explanation. Works on every tier. */
+const DEFAULT_VOICE = VOICE_IDS["alice"]!;
 
 export type VoiceRequest = {
   readonly text: string;
@@ -106,6 +130,18 @@ export const synthesize = async (req: VoiceRequest): Promise<VoiceResult> => {
 
   if (!response.ok) {
     const body = await response.text().catch(() => "");
+
+    // A 402 on a voice is almost always a library voice on a free plan, and
+    // the raw payload does not make the fix obvious. Say what to do instead.
+    if (response.status === 402 && /library_voice|paid_plan_required/.test(body)) {
+      throw new Error(
+        `This voice is not available on your ElevenLabs plan.\n` +
+          `  Voice Library voices need a paid plan; premade voices work on every tier.\n` +
+          `  Try one of: ${Object.keys(VOICE_IDS).slice(0, 8).join(", ")}\n` +
+          `  Set it in your script's frontmatter, e.g.  voice: elevenlabs:Alice`,
+      );
+    }
+
     throw new Error(
       `ElevenLabs ${response.status} ${response.statusText}${body ? `: ${body.slice(0, 400)}` : ""}`,
     );

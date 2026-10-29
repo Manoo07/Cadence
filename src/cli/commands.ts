@@ -461,6 +461,7 @@ export const cmdProof = async (name: string): Promise<void> => {
         "--frame", String(frame),
         "--props", propsFile,
         ...browserFlags(),
+        "--timeout", "120000",
         "--log", "error",
       ],
       { cwd: ROOT, maxBuffer: 64 * 1024 * 1024 },
@@ -554,6 +555,10 @@ export const cmdRender = async (
       "remotion", "render", serveUrl, "Video", out,
       "--props", propsFile,
       ...browserFlags(),
+      // Remotion's default is 30s per frame. SVG-heavy scenes on a loaded
+      // machine can exceed that and fail a render most of the way through,
+      // which is an expensive way to discover a transient stall.
+      "--timeout", "120000",
       "--log", "info",
       ...extra,
     ],

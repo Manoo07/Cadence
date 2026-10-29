@@ -52,6 +52,19 @@ If a scene needs two sentences of setup plus a conclusion, it is two scenes.
 **Write the narration first, then choose the layout.** The layout illustrates
 what is being said; picking it first leads to scripts written to fit a picture.
 
+**Name every section on screen.** If the script works through a numbered list —
+seven failures, five steps, three options — each scene must say which one it
+is, with `eyebrow` for the number and `headline` for the name:
+
+```md
+:: code { eyebrow: "problem 02", headline: "Truncated file", ... }
+```
+
+Narration alone does not do this. Someone who looks up three seconds late has
+no idea whether this is problem two or problem five, and the video stops
+feeling structured and starts feeling like someone reading aloud. The viewer
+should be able to pause on any frame and know exactly where they are.
+
 **Mark one emphasis per scene, at most two.** `**bold**` is a beat the visuals
 snap to. Marking five words in a sentence means marking nothing.
 

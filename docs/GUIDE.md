@@ -98,6 +98,10 @@ the words; the timing follows.
   spoken words. Two sentences of setup plus a conclusion is two scenes.
 - **Write it to be spoken.** Contractions, short sentences. Read it aloud — if
   you run out of breath, it is too long.
+- **Name every section on screen.** Working through a numbered list? Each scene
+  gets `eyebrow: "problem 03"` and `headline: "Full scan"`. A viewer who looks
+  up late must still know where they are. Without this the video sounds like
+  someone reading a page aloud.
 - **Mark one emphasis per scene.** `**bold**` is a beat the visuals snap to.
   Marking five words in a sentence marks nothing.
 - **Keep under two minutes.** Vertical viewers leave.

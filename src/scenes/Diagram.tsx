@@ -10,7 +10,7 @@
 import React from "react";
 import { AbsoluteFill } from "remotion";
 import { z } from "zod";
-import { Connector, Text, useScene } from "../kit/index.ts";
+import { Badge, Connector, Text, useScene } from "../kit/index.ts";
 import { popIn, ramp, stagger } from "../kit/motion.ts";
 import { defineLayout } from "./types.ts";
 
@@ -33,6 +33,15 @@ const schema = z.object({
   nodes: z.array(node).min(2).max(7),
   edges: z.array(edge).default([]),
   headline: z.string().optional(),
+  /**
+   * A small mono label above the headline, naming the section.
+   *
+   * Explainers that run through a numbered list need the viewer to know which
+   * item they are on at a glance. Narration alone does not do this: someone
+   * who looks up three seconds late has no idea whether this is problem two
+   * or problem five.
+   */
+  eyebrow: z.string().optional(),
   /** row = left-to-right, column = top-to-bottom, hub = first node centred. */
   arrange: z.enum(["row", "column", "hub"]).default("column"),
 });
@@ -61,6 +70,7 @@ const Diagram: React.FC<z.infer<typeof schema>> = ({
   nodes,
   edges = [],
   headline,
+  eyebrow,
   arrange = "column",
 }) => {
   const { style, frame, fps, format, scale } = useScene();
@@ -87,6 +97,7 @@ const Diagram: React.FC<z.infer<typeof schema>> = ({
         gap: 20 * scale,
       }}
     >
+            {eyebrow && <Badge tone="plain">{eyebrow}</Badge>}
       {headline && (
         <Text role="heading" align="center" animate={{ delay: 0 }}>
           {headline}

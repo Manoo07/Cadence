@@ -1,7 +1,9 @@
 .cache/
+.DS_Store
 .env
 .venv-media/
 *.log
+**/.DS_Store
 node_modules/
 projects/*/out/
 projects/*/public/footage/
