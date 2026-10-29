@@ -1,0 +1,4 @@
+# Remotion's bundler depends on esbuild, whose postinstall fetches the platform
+# binary. Without allowing that build, @remotion/bundler never materialises.
+allowBuilds:
+  esbuild: true

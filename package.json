@@ -1,0 +1,58 @@
+{
+  "name": "cadence",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Script in, video out. The voice sets the cadence \u2014 scene cuts, captions and accents are measured from the audio.",
+  "scripts": {
+    "cadence": "tsx src/cli/index.ts",
+    "video": "tsx src/cli/index.ts",
+    "preview": "remotion studio src/video/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.539",
+    "@remotion/captions": "4.0.539",
+    "@remotion/cli": "4.0.539",
+    "@remotion/google-fonts": "4.0.539",
+    "@remotion/media-utils": "4.0.539",
+    "@remotion/renderer": "4.0.539",
+    "@remotion/shapes": "4.0.539",
+    "@remotion/transitions": "4.0.539",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "remotion": "4.0.539",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.5",
+    "@types/react": "19.0.2",
+    "@types/react-dom": "19.0.2",
+    "tsx": "4.19.2",
+    "typescript": "5.7.3",
+    "vitest": "2.1.8"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Manoo07/Cadence.git"
+  },
+  "author": "Manohar Boinapalli",
+  "keywords": [
+    "video",
+    "remotion",
+    "hyperframes",
+    "explainer",
+    "captions",
+    "whisper",
+    "elevenlabs",
+    "text-to-video",
+    "motion-graphics",
+    "ai-agents"
+  ],
+  "engines": {
+    "node": ">=22"
+  }
+}

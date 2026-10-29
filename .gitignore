@@ -1,0 +1,12 @@
+.cache/
+.env
+.venv-media/
+*.log
+node_modules/
+projects/*/out/
+projects/*/public/footage/
+projects/*/public/mixed.mp3
+projects/*/public/voiceover*
+projects/*/public/words.json
+projects/*/video.json
+renders/
