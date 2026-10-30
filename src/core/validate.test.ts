@@ -54,7 +54,12 @@ describe("validate", () => {
   });
 
   it("flags text that will overflow, with a character budget", () => {
-    const long = "A title that is far too long to possibly fit inside the frame at hero size";
+    // Long enough that even the title layout's smallest auto-fit step cannot
+    // hold it in three lines.
+    const long =
+      "A title so comprehensively and extravagantly overlong that no amount of " +
+      "automatic type scaling could reasonably be expected to rescue it from " +
+      "running clean off the bottom of the frame entirely";
     const spec = specFrom(
       `${head}\n## 01 - a\n:: title { text: "${long}" }\nNarration for this scene goes here.\n`,
     );
@@ -62,6 +67,17 @@ describe("validate", () => {
     const found = report.issues.find((i) => i.code === "text.overflow");
     expect(found).toBeDefined();
     expect(found!.hint).toMatch(/characters fit/);
+  });
+
+  it("lets a full sentence stand as a title, since the layout scales to fit", () => {
+    // Regression guard: the payoff line of a real episode. Shortening good
+    // writing to satisfy a layout is backwards, so this must not be flagged.
+    const line = "Your data never changed. Your execution plan did.";
+    const spec = specFrom(
+      `${head}\n## 01 - a\n:: title { text: "${line}" }\nNarration for this scene goes here.\n`,
+    );
+    const report = validate(spec, { knownLayouts: KNOWN });
+    expect(report.issues.some((i) => i.code === "text.overflow")).toBe(false);
   });
 
   it("allows a hero title to wrap to several lines", () => {
