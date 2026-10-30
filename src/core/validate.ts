@@ -260,14 +260,17 @@ const textFields = (layout: string): TextField[] => {
   const common: TextField[] = [
     { key: "headline", size: 64, mono: false, lines: 2 },
     { key: "caption", size: 44, mono: false, lines: 2 },
-    { key: "title", size: 44, mono: false, lines: 1 },
+    // Window-chrome titles sit in a fixed bar and cannot wrap.
+    { key: "title", size: 32, mono: true, lines: 1 },
     { key: "badge", size: 24, mono: true, lines: 1 },
     { key: "eyebrow", size: 24, mono: true, lines: 1 },
     { key: "subtitle", size: 44, mono: false, lines: 2 },
   ];
   switch (layout) {
     case "title":
-      return [{ key: "text", size: 132, mono: false, lines: 3 }, ...common];
+      // The title layout scales display type down as the statement grows, so
+      // the effective size here mirrors that curve rather than the base 132.
+      return [{ key: "text", size: 132 * 0.54, mono: false, lines: 3 }, ...common];
     case "quote":
       return [
         { key: "text", size: 96, mono: false, lines: 4 },

@@ -1,0 +1,84 @@
+================ CAPTURE Thu Oct 29 16:43:54 IST 2026 ================
+
+=== version (record what you verified against) ===
+                                                            version                                                            
+-------------------------------------------------------------------------------------------------------------------------------
+ PostgreSQL 17.11 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.3.34.2), 64-bit
+(1 row)
+
+
+=== cast semantics Scene 6 depends on ===
+ tenth | cents  
+-------+--------
+   0.1 | 123.45
+(1 row)
+
+
+=== GROUND TRUTH 1 of 2 — the aggregate ===
+   intended_total    |   cast_sum    | cast_error 
+---------------------+---------------+------------
+ 1250655316.89000000 | 1250655316.89 | 0.00000000
+(1 row)
+
+
+=== GROUND TRUTH 2 of 2 — every row ===
+ rows_where_cast_lost_the_amount 
+---------------------------------
+                               0
+(1 row)
+
+
+=== RUN A — serial ===
+      total_a      
+-------------------
+ 1250655316.889824
+(1 row)
+
+                                                           QUERY PLAN                                                            
+---------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=89572.00..89572.01 rows=1 width=8) (actual time=364.110..364.115 rows=1 loops=1)
+   Output: sum(amount)
+   ->  Seq Scan on public.payments  (cost=0.00..77072.00 rows=5000000 width=8) (actual time=0.067..202.994 rows=5000000 loops=1)
+         Output: amount_cents, amount
+ Planning Time: 0.050 ms
+ Execution Time: 364.140 ms
+(6 rows)
+
+
+=== RUN B — parallel ===
+      total_b       
+--------------------
+ 1250655316.8900142
+(1 row)
+
+                                                                     QUERY PLAN                                                                      
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+ Finalize Aggregate  (cost=42697.02..42697.03 rows=1 width=8) (actual time=88.504..92.060 rows=1 loops=1)
+   Output: sum(amount)
+   ->  Gather  (cost=42697.00..42697.01 rows=4 width=8) (actual time=88.295..92.055 rows=5 loops=1)
+         Output: (PARTIAL sum(amount))
+         Workers Planned: 4
+         Workers Launched: 4
+         ->  Partial Aggregate  (cost=42697.00..42697.01 rows=1 width=8) (actual time=64.804..64.804 rows=1 loops=5)
+               Output: PARTIAL sum(amount)
+               Worker 0:  actual time=59.123..59.123 rows=1 loops=1
+               Worker 1:  actual time=60.319..60.319 rows=1 loops=1
+               Worker 2:  actual time=58.002..58.002 rows=1 loops=1
+               Worker 3:  actual time=58.662..58.663 rows=1 loops=1
+               ->  Parallel Seq Scan on public.payments  (cost=0.00..39572.00 rows=1250000 width=8) (actual time=0.540..35.340 rows=1000000 loops=5)
+                     Output: amount_cents, amount
+                     Worker 0:  actual time=0.497..31.670 rows=1038775 loops=1
+                     Worker 1:  actual time=1.081..32.825 rows=908725 loops=1
+                     Worker 2:  actual time=0.389..33.841 rows=747400 loops=1
+                     Worker 3:  actual time=0.725..31.629 rows=843970 loops=1
+ Planning Time: 0.031 ms
+ Execution Time: 92.073 ms
+(20 rows)
+
+
+=== Scene 6 — float summation vs the intended decimal total ===
+   intended_total    |   cast_sum    |     float_sum      | float_error 
+---------------------+---------------+--------------------+-------------
+ 1250655316.89000000 | 1250655316.89 | 1250655316.8900335 | -0.00003000
+(1 row)
+

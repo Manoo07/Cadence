@@ -27,8 +27,22 @@ const Title: React.FC<z.infer<typeof schema>> = ({
   align = "center",
   tone = "ink",
 }) => {
-  const { frame, beats, format, scale } = useScene();
+  const { frame, beats, format, scale, style } = useScene();
   const pulse = beatPulse(frame, beats, { amount: 0.03 });
+
+  /**
+   * Shrink long statements to fit rather than overflowing.
+   *
+   * A title layout that only holds four words forces the author to weaken
+   * their best line to satisfy the layout — exactly backwards. Display type
+   * is meant to flex: a short statement stays huge, a full sentence steps
+   * down to something that still reads as display but fits the frame.
+   */
+  const fit =
+    text.length <= 28 ? 1
+    : text.length <= 44 ? 0.82
+    : text.length <= 62 ? 0.66
+    : 0.54;
 
   return (
     <AbsoluteFill
@@ -52,6 +66,7 @@ const Title: React.FC<z.infer<typeof schema>> = ({
         align={align}
         animate={{ delay: 4 }}
         maxWidth={format.width - format.safe.left * 2}
+        style={{ fontSize: style.type.size.hero * fit * scale }}
       >
         {text}
       </Text>
